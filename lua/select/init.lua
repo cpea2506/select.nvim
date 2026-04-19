@@ -44,32 +44,60 @@ end
 ---Create list of labels.
 ---@param items string[]
 local function create_labels(items)
+    local alphabet = "abcdefghijklmnopqrstuvwxyz"
+    local preserve_keys = { j = true, k = true, g = true, q = true }
+
     local labels = {}
     local used = {}
-    local fallback = "a"
-    local preserve_keys = { j = true, k = true, g = true }
 
+    -- Mark reserved keys as already used.
+    for k in pairs(preserve_keys) do
+        used[k] = true
+    end
+    local function next_label(i)
+        local result = ""
+
+        i = i + 1
+
+        while i > 0 do
+            local r = (i - 1) % 26
+            result = alphabet:sub(r + 1, r + 1) .. result
+            i = math.floor((i - 1) / 26)
+        end
+
+        return result
+    end
+
+    local function get_next_available()
+        local i = 0
+
+        while true do
+            local label = next_label(i)
+
+            if not used[label] then
+                used[label] = true
+
+                return label
+            end
+
+            i = i + 1
+        end
+    end
+
+    -- Try first-letter labels.
     for _, item in ipairs(items) do
         local first_letter = item:sub(1, 1):lower()
 
-        if preserve_keys[first_letter] == nil and not used[first_letter] then
+        if not preserve_keys[first_letter] and not used[first_letter] then
             used[first_letter] = true
             labels[item] = first_letter
         end
     end
 
+    -- Try fallback labels.
     for _, item in ipairs(items) do
         if not labels[item] then
-            while used[fallback] do
-                fallback = string.char(fallback:byte() + 1)
-            end
-
-            if fallback:byte() > 122 then
-                fallback = "A"
-            end
-
-            used[fallback] = true
-            labels[item] = fallback
+            labels[item] = get_next_available()
         end
     end
 
