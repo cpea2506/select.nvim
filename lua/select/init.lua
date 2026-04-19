@@ -152,8 +152,8 @@ local function select(items, opts, on_choice)
 
     show_cursor(false)
 
-    for i, label in ipairs(labels) do
-        vim.keymap.set("n", label, function()
+    for i, title in ipairs(titles) do
+        vim.keymap.set("n", labels[title], function()
             choose(winid, i)
         end, { buffer = bufnr, nowait = true })
     end
