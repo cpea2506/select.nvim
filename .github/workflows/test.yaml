@@ -1,0 +1,43 @@
+name: test
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  unit_tests:
+    name: Run tests on ${{ matrix.os }} with Neovim ${{ matrix.nvim_version }}
+    strategy:
+     fail-fast: false
+     matrix:
+      os: [windows-latest, ubuntu-latest, macos-latest]
+      nvim_version: [stable, nightly]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: notomo/action-setup-nvim-lua@v2
+
+      - name: Setup neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.nvim_version }}
+
+      - run: date +%F > todays-date
+
+      - name: Restore cache for today's nightly.
+        uses: actions/cache@v4
+        with:
+          path: _neovim
+          key: ${{ runner.os }}-${{ matrix.nvim_version }}-${{ hashFiles('todays-date') }}
+
+      - name: Install vusted
+        run: luarocks install vusted
+
+      - name: Run tests
+        run: vusted tests
