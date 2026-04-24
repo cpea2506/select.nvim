@@ -1,7 +1,16 @@
+---@class select.type.range
+---@field min integer
+---@field max integer
+
+---@class select.config.size_options
+---@field width select.type.range
+---@field height select.type.range
+---
 ---@class select.config
 ---@field default_prompt string
 ---@field win_options vim.wo
 ---@field win_config vim.api.keyset.win_config
+---@field size_options select.config.size_options
 local config = {}
 
 ---@type select.config
@@ -19,6 +28,16 @@ local defaults = {
         noautocmd = true,
         zindex = 150,
         style = "minimal",
+    },
+    size_options = {
+        width = {
+            min = 1,
+            max = 80,
+        },
+        height = {
+            min = 1,
+            max = 999,
+        },
     },
 }
 

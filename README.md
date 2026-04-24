@@ -30,11 +30,21 @@ Configuration is optional, only needed if you want to override defaults.
 
 ### Available Options
 
-| Option           | Description                              | Type                 | Notes                        |
-| ---------------- | ---------------------------------------- | -------------------- | ---------------------------- |
-| `default_prompt` | Default text for the prompt              | `string`             | N/A                          |
-| `win_options`    | Window-level Vim options                 | `table<string, any>` | See `:h nvim_win_set_option` |
-| `win_config`     | Window configuration for `nvim_open_win` | `table<string, any>` | See `:h nvim_open_win`       |
+| Option           | Description                              | Type                 | Notes                             |
+| ---------------- | ---------------------------------------- | -------------------- | --------------------------------- |
+| `default_prompt` | Default text for the prompt              | `string`             | N/A                               |
+| `win_options`    | Window-level Vim options                 | `table<string, any>` | See `:h nvim_win_set_option`      |
+| `win_config`     | Window configuration for `nvim_open_win` | `table<string, any>` | See `:h nvim_open_win`            |
+| `size_options`   | Dynamic sizing configuration             | `table`              | See [Size Options](#size-options) |
+
+#### Size Options
+
+| Option       | Description                         | Type      | Notes |
+| ------------ | ----------------------------------- | --------- | ----- |
+| `width.min`  | Minimum width of the select window  | `integer` | N/A   |
+| `width.max`  | Maximum width of the select window  | `integer` | N/A   |
+| `height.min` | Minimum height of the select window | `integer` | N/A   |
+| `height.max` | Maximum height of the select window | `integer` | N/A   |
 
 ### Default Configuration
 
@@ -53,6 +63,16 @@ require("select").setup({
         noautocmd = true,
         zindex = 150,
         style = "minimal",
+    },
+    size_options = {
+        width = {
+            min = 1,
+            max = 80,
+        },
+        height = {
+            min = 1,
+            max = 999,
+        },
     },
 })
 ```

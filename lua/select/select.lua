@@ -10,10 +10,6 @@ local buf_options = {
     filetype = "select",
 }
 
-local min_size = 0.15
-local max_size = 0.8
-local max_width = 80
-
 ---Show or hide cursor.
 ---@param show boolean
 local function show_cursor(show)
@@ -113,6 +109,7 @@ function M.select(items, opts, on_choice)
 
     local config = require "select.config"
     local win_config = config.win_config
+    local size_options = config.size_options
 
     local prompt = opts.prompt or config.default_prompt
     win_config.title = trim_and_pad_title(prompt)
@@ -146,7 +143,7 @@ function M.select(items, opts, on_choice)
         :totable()
     local labels = create_labels(titles)
     local lines = {}
-    local max_line_width = prompt and vim.api.nvim_strwidth(prompt) or 1
+    local max_line_width = prompt and vim.api.nvim_strwidth(prompt) or size_options.width.min
 
     for _, title in ipairs(titles) do
         local prefix = labels[title] .. ": "
@@ -166,11 +163,8 @@ function M.select(items, opts, on_choice)
         vim.hl.range(bufnr, ns, "SelectOptionLabel", { i - 1, 0 }, { i - 1, #labels[title] + 1 })
     end
 
-    win_config.width = math.max(max_line_width, max_width)
-
-    local height = clamp((#lines + 4) / vim.o.lines, min_size, max_size)
-    print(height)
-    win_config.height = math.min(#lines, math.floor(height * vim.o.lines < 1 and 1 or 1))
+    win_config.width = math.max(max_line_width, size_options.width.max)
+    win_config.height = clamp(#lines, size_options.height.min, size_options.height.max)
 
     win_config.row = math.floor((vim.o.lines - win_config.height) / 2)
     win_config.col = math.floor((vim.o.columns - win_config.width) / 2)
