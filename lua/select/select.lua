@@ -4,6 +4,7 @@ local M = setmetatable({}, {
     end,
 })
 
+---@type vim.bo
 local buf_options = {
     swapfile = false,
     bufhidden = "wipe",
@@ -143,13 +144,16 @@ function M.select(items, opts, on_choice)
         :totable()
     local labels = create_labels(titles)
     local lines = {}
+    local height = 0
     local max_line_width = prompt and vim.api.nvim_strwidth(prompt) or size_options.width.min
 
     for _, title in ipairs(titles) do
         local prefix = labels[title] .. ": "
         local line = prefix .. title
 
-        max_line_width = math.max(max_line_width, vim.api.nvim_strwidth(line))
+        local line_width = vim.api.nvim_strwidth(line)
+        max_line_width = math.max(max_line_width, line_width)
+        height = height + math.ceil(line_width / size_options.width.max)
 
         table.insert(lines, line)
     end
@@ -163,8 +167,8 @@ function M.select(items, opts, on_choice)
         vim.hl.range(bufnr, ns, "SelectOptionLabel", { i - 1, 0 }, { i - 1, #labels[title] + 1 })
     end
 
-    win_config.width = math.max(max_line_width, size_options.width.max)
-    win_config.height = clamp(#lines, size_options.height.min, size_options.height.max)
+    win_config.width = clamp(max_line_width, size_options.width.min, size_options.width.max) + 2
+    win_config.height = clamp(height, size_options.height.min, size_options.height.max)
 
     win_config.row = math.floor((vim.o.lines - win_config.height) / 2)
     win_config.col = math.floor((vim.o.columns - win_config.width) / 2)

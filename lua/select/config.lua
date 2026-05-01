@@ -31,8 +31,8 @@ local defaults = {
     },
     size_options = {
         width = {
-            min = 1,
-            max = 80,
+            min = 80,
+            max = 100,
         },
         height = {
             min = 1,
