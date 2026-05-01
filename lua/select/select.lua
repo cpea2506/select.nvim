@@ -185,6 +185,9 @@ function M.select(items, opts, on_choice)
         end, { buffer = bufnr, nowait = true })
     end
 
+    vim.keymap.set("n", "<Esc>", function()
+        cancel(winid)
+    end, { buffer = bufnr })
     vim.keymap.set("n", "<C-c>", function()
         cancel(winid)
     end, { buffer = bufnr })

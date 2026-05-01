@@ -83,6 +83,7 @@ These are the default key mappings:
 
 | Keybinding | Mode(s) | Action                                   |
 | ---------- | ------- | ---------------------------------------- |
+| `<Esc>`    | n       | Cancel content changes and close select  |
 | `<C-c>`    | n       | Cancel content changes and close select  |
 | `q`        | n       | Cancel content changes and close select  |
 | `<CR>`     | n       | Confirm content changes and close select |
