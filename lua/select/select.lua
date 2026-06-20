@@ -55,6 +55,7 @@ local function create_labels(items)
     for k in pairs(preserve_keys) do
         used[k] = true
     end
+
     local function next_label(i)
         local result = ""
 
@@ -105,6 +106,8 @@ local function create_labels(items)
     return labels
 end
 
+local current_winid = nil
+
 function M.select(items, opts, on_choice)
     opts = opts or {}
 
@@ -117,7 +120,11 @@ function M.select(items, opts, on_choice)
 
     local function close(winid)
         show_cursor(true)
-        vim.api.nvim_win_close(winid, true)
+
+        if winid and vim.api.nvim_win_is_valid(winid) then
+            current_winid = nil
+            vim.api.nvim_win_close(winid, true)
+        end
     end
 
     local function choose(winid, index)
@@ -128,6 +135,9 @@ function M.select(items, opts, on_choice)
     local function cancel(winid)
         choose(winid, nil)
     end
+
+    -- Close existing window if exists.
+    close(current_winid)
 
     -- Create buffer.
     local bufnr = vim.api.nvim_create_buf(false, true)
@@ -174,36 +184,36 @@ function M.select(items, opts, on_choice)
     win_config.col = math.floor((vim.o.columns - win_config.width) / 2)
 
     -- Create floating window.
-    local winid = vim.api.nvim_open_win(bufnr, true, win_config)
+    current_winid = vim.api.nvim_open_win(bufnr, true, win_config)
 
     -- Set window options.
     for option, value in pairs(config.win_options) do
-        vim.wo[winid][option] = value
+        vim.wo[current_winid][option] = value
     end
 
     show_cursor(false)
 
     for i, title in ipairs(titles) do
         vim.keymap.set("n", labels[title], function()
-            choose(winid, i)
+            choose(current_winid, i)
         end, { buffer = bufnr, nowait = true })
     end
 
     vim.keymap.set("n", "<Esc>", function()
-        cancel(winid)
+        cancel(current_winid)
     end, { buffer = bufnr })
     vim.keymap.set("n", "<C-c>", function()
-        cancel(winid)
+        cancel(current_winid)
     end, { buffer = bufnr })
     vim.keymap.set("n", "q", function()
-        cancel(winid)
+        cancel(current_winid)
     end, { buffer = bufnr })
     vim.keymap.set("n", "<cr>", function()
-        local index = vim.api.nvim_win_get_cursor(winid)[1]
-        choose(winid, index)
+        local index = vim.api.nvim_win_get_cursor(current_winid)[1]
+        choose(current_winid, index)
     end, { buffer = bufnr })
 
-    local augroup = vim.api.nvim_create_augroup("select", { clear = true })
+    local augroup = vim.api.nvim_create_augroup("select", {})
 
     vim.api.nvim_create_autocmd("BufLeave", {
         group = augroup,
@@ -212,7 +222,7 @@ function M.select(items, opts, on_choice)
         nested = true,
         once = true,
         callback = function()
-            close(winid)
+            close(current_winid)
         end,
     })
 
