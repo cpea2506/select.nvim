@@ -4,13 +4,6 @@ local M = setmetatable({}, {
     end,
 })
 
----@type vim.bo
-local buf_options = {
-    swapfile = false,
-    bufhidden = "wipe",
-    filetype = "select",
-}
-
 ---Show or hide cursor.
 ---@param show boolean
 local function show_cursor(show)
@@ -106,145 +99,192 @@ local function create_labels(items)
     return labels
 end
 
-local current_winid = nil
+---@generic T
+---@class Select
+---@field items T[]
+---@field on_choice fun(item: T|nil, index: integer|nil)
+---@field winid integer
+---@field buf integer
+---@field titles string[]
+---@field labels string[]
+---@field prompt string
+local Select = {}
+Select.__index = Select
 
-function M.select(items, opts, on_choice)
+function Select.new(items, opts, on_choice)
     opts = opts or {}
 
     local config = require "select.config"
-    local win_config = config.win_config
-    local size_options = config.size_options
-
-    local prompt = opts.prompt or config.default_prompt
-    win_config.title = trim_and_pad_title(prompt)
-
-    local function close(winid)
-        show_cursor(true)
-
-        if winid and vim.api.nvim_win_is_valid(winid) then
-            current_winid = nil
-            vim.api.nvim_win_close(winid, true)
-        end
-    end
-
-    local function choose(winid, index)
-        close(winid)
-        on_choice(items[index], index)
-    end
-
-    local function cancel(winid)
-        choose(winid, nil)
-    end
-
-    -- Close existing window if exists.
-    close(current_winid)
-
-    -- Create buffer.
-    local bufnr = vim.api.nvim_create_buf(false, true)
-
-    -- Set buffer options.
-    for option, value in pairs(buf_options) do
-        vim.bo[bufnr][option] = value
-    end
-
     local titles = vim.iter(items)
         :map(function(item)
             return opts.format_item and opts.format_item(item) or item
         end)
         :totable()
-    local labels = create_labels(titles)
+
+    return setmetatable({
+        items = items,
+        on_choice = on_choice,
+        winid = nil,
+        bufnr = nil,
+        titles = titles,
+        labels = create_labels(titles),
+        prompt = opts.prompt or config.default_prompt,
+    }, Select)
+end
+
+function Select:choose(index)
+    self:close()
+    self.on_choice(self.items[index], index)
+end
+
+function Select:close()
+    show_cursor(true)
+
+    if self.winid and vim.api.nvim_win_is_valid(self.winid) then
+        vim.api.nvim_win_close(self.winid, true)
+    end
+
+    if self.buf and vim.api.nvim_buf_is_valid(self.buf) then
+        vim.api.nvim_buf_delete(self.buf, { force = true })
+    end
+end
+
+function Select:cancel()
+    self:choose(nil)
+end
+
+function Select:create_buffer()
+    self.buf = vim.api.nvim_create_buf(false, true)
+
+    ---@type vim.bo
+    local buf_options = {
+        swapfile = false,
+        bufhidden = "wipe",
+        filetype = "select",
+    }
+
+    for option, value in pairs(buf_options) do
+        vim.bo[self.buf][option] = value
+    end
+end
+
+function Select:create_window()
+    local config = require "select.config"
+    local size_options = config.size_options
+    local win_config = config.win_config
+
+    win_config.title = trim_and_pad_title(self.prompt)
+
     local lines = {}
     local height = 0
-    local max_line_width = prompt and vim.api.nvim_strwidth(prompt) or size_options.width.min
+    local max_line_width = self.prompt and vim.api.nvim_strwidth(self.prompt) or size_options.width.min
 
-    for _, title in ipairs(titles) do
-        local prefix = labels[title] .. ": "
+    for _, title in ipairs(self.titles) do
+        local prefix = self.labels[title] .. ": "
         local line = prefix .. title
-
         local line_width = vim.api.nvim_strwidth(line)
+
         max_line_width = math.max(max_line_width, line_width)
         height = height + math.ceil(line_width / size_options.width.max)
 
         table.insert(lines, line)
     end
 
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, lines)
-    vim.bo[bufnr].modifiable = false
+    vim.api.nvim_buf_set_lines(self.buf, 0, -1, true, lines)
+    vim.bo[self.buf].modifiable = false
 
     local ns = vim.api.nvim_create_namespace "select"
 
-    for i, title in ipairs(titles) do
-        vim.hl.range(bufnr, ns, "SelectOptionLabel", { i - 1, 0 }, { i - 1, #labels[title] + 1 })
+    for i, title in ipairs(self.titles) do
+        vim.hl.range(self.buf, ns, "SelectOptionLabel", { i - 1, 0 }, { i - 1, #self.labels[title] + 1 })
     end
 
     win_config.width = clamp(max_line_width, size_options.width.min, size_options.width.max) + 2
     win_config.height = clamp(height, size_options.height.min, size_options.height.max)
-
     win_config.row = math.floor((vim.o.lines - win_config.height) / 2)
     win_config.col = math.floor((vim.o.columns - win_config.width) / 2)
 
-    -- Create floating window.
-    current_winid = vim.api.nvim_open_win(bufnr, true, win_config)
+    self.winid = vim.api.nvim_open_win(self.buf, true, win_config)
 
-    -- Set window options.
     for option, value in pairs(config.win_options) do
-        vim.wo[current_winid][option] = value
+        vim.wo[self.winid][option] = value
     end
 
     show_cursor(false)
+end
 
-    for i, title in ipairs(titles) do
-        vim.keymap.set("n", labels[title], function()
-            choose(current_winid, i)
-        end, { buffer = bufnr, nowait = true })
+function Select:set_keymaps()
+    for i, title in ipairs(self.titles) do
+        vim.keymap.set("n", self.labels[title], function()
+            self:choose(i)
+        end, { buffer = self.buf, nowait = true })
     end
 
     vim.keymap.set("n", "<Esc>", function()
-        cancel(current_winid)
-    end, { buffer = bufnr })
+        self:cancel()
+    end, { buffer = self.buf })
     vim.keymap.set("n", "<C-c>", function()
-        cancel(current_winid)
-    end, { buffer = bufnr })
+        self:cancel()
+    end, { buffer = self.buf })
     vim.keymap.set("n", "q", function()
-        cancel(current_winid)
-    end, { buffer = bufnr })
+        self:cancel()
+    end, { buffer = self.buf })
     vim.keymap.set("n", "<cr>", function()
-        local index = vim.api.nvim_win_get_cursor(current_winid)[1]
-        choose(current_winid, index)
-    end, { buffer = bufnr })
+        local index = vim.api.nvim_win_get_cursor(self.winid)[1]
+        self:choose(index)
+    end, { buffer = self.buf })
+end
 
+function Select:create_autocmds()
     local augroup = vim.api.nvim_create_augroup("select", {})
 
     vim.api.nvim_create_autocmd("BufLeave", {
         group = augroup,
         desc = "Cancel vim.ui.select",
-        buffer = bufnr,
+        buffer = self.buf,
         nested = true,
         once = true,
         callback = function()
-            close(current_winid)
+            self:close()
         end,
     })
-
     vim.api.nvim_create_autocmd("CmdlineEnter", {
         group = augroup,
         desc = "Show cursor",
-        buffer = bufnr,
+        buffer = self.buf,
         nested = true,
         callback = function()
             show_cursor(true)
         end,
     })
-
     vim.api.nvim_create_autocmd("CmdlineLeave", {
         group = augroup,
         desc = "Hide cursor",
-        buffer = bufnr,
+        buffer = self.buf,
         nested = true,
         callback = function()
             show_cursor(false)
         end,
     })
+end
+
+function Select:show()
+    self:create_buffer()
+    self:create_window()
+    self:set_keymaps()
+    self:create_autocmds()
+end
+
+---@type Select
+local instance = nil
+
+function M.select(items, opts, on_choice)
+    if instance then
+        instance:close()
+    end
+
+    instance = Select.new(items, opts, on_choice)
+    instance:show()
 end
 
 return M
