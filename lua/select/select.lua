@@ -1,8 +1,6 @@
-local M = setmetatable({}, {
-    __call = function(t, ...)
-        t.select(...)
-    end,
-})
+---@class SelectModule
+---@overload fun<T>(items: T[], opts: vim.ui.select.Opts, on_choice: fun(item?: T, idx?: integer))
+local M = {}
 
 ---Show or hide cursor.
 ---@param show boolean
@@ -28,9 +26,11 @@ local function trim_and_pad_title(title)
 end
 
 ---Clamp value to between min and max.
----@param value number
----@param min number
----@param max number
+---@generic T: number|integer
+---@param value T
+---@param min T
+---@param max T
+---@return T
 local function clamp(value, min, max)
     return math.max(math.min(value, max), min)
 end
@@ -101,16 +101,20 @@ end
 
 ---@generic T
 ---@class Select
----@field items T[]
----@field on_choice fun(item: T|nil, index: integer|nil)
+---@field items table<integer, T>
+---@field on_choice fun(item?: T, index?: integer)
 ---@field winid integer
 ---@field buf integer
 ---@field titles string[]
----@field labels string[]
+---@field labels table<string, string>
 ---@field prompt string
 local Select = {}
 Select.__index = Select
 
+---@generic T
+---@param items T[]
+---@param opts vim.ui.select.Opts
+---@param on_choice fun(item?: T, idx?: integer)
 function Select.new(items, opts, on_choice)
     opts = opts or {}
 
@@ -125,13 +129,14 @@ function Select.new(items, opts, on_choice)
         items = items,
         on_choice = on_choice,
         winid = nil,
-        bufnr = nil,
+        buf = nil,
         titles = titles,
         labels = create_labels(titles),
-        prompt = opts.prompt or config.default_prompt,
+        prompt = opts.prompt or config.options.default_prompt,
     }, Select)
 end
 
+---@param index? integer
 function Select:choose(index)
     self:close()
     self.on_choice(self.items[index], index)
@@ -153,7 +158,7 @@ end
 function Select:create_buffer()
     self.buf = vim.api.nvim_create_buf(false, true)
 
-    ---@type vim.bo
+    ---@type Partial<vim.bo>
     local buf_options = {
         swapfile = false,
         bufhidden = "wipe",
@@ -167,8 +172,8 @@ end
 
 function Select:create_window()
     local config = require "select.config"
-    local size_options = config.size_options
-    local win_config = config.win_config
+    local size_options = config.options.size_options
+    local win_config = config.options.win_config
 
     win_config.title = trim_and_pad_title(self.prompt)
 
@@ -203,7 +208,7 @@ function Select:create_window()
 
     self.winid = vim.api.nvim_open_win(self.buf, true, win_config)
 
-    for option, value in pairs(config.win_options) do
+    for option, value in pairs(config.options.win_options) do
         vim.wo[self.winid][option] = value
     end
 
@@ -272,10 +277,14 @@ function Select:show()
     self:create_autocmds()
 end
 
----@type Select
+---@type Select?
 local instance = nil
 
-function M.select(items, opts, on_choice)
+---@generic T
+---@param items T[]
+---@param opts vim.ui.select.Opts
+---@param on_choice fun(item?: T, idx?: integer)
+local function select(items, opts, on_choice)
     if instance then
         instance:close()
     end
@@ -283,5 +292,11 @@ function M.select(items, opts, on_choice)
     instance = Select.new(items, opts, on_choice)
     instance:show()
 end
+
+setmetatable(M, {
+    __call = function(_, ...)
+        select(...)
+    end,
+})
 
 return M

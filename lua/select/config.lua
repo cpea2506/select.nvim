@@ -1,26 +1,18 @@
----@class select.type.range
----@field min integer
----@field max integer
+---@alias input.type.range { min: integer, max: integer }
 
----@class select.config.size_options
----@field width select.type.range
----@field height select.type.range
----
 ---@class select.config
----@field default_prompt string
----@field win_options vim.wo
----@field win_config vim.api.keyset.win_config
----@field size_options select.config.size_options
 local config = {}
 
----@type select.config
+---@class select.options
 local defaults = {
     default_prompt = "Select",
+    ---@type Partial<vim.wo>
     win_options = {
         cursorline = true,
         cursorlineopt = "both",
         winhighlight = "Normal:FloatNormal,FloatBorder:FloatBorder,CursorLine:Visual",
     },
+    ---@type vim.api.keyset.win_config
     win_config = {
         relative = "editor",
         anchor = "NW",
@@ -30,10 +22,12 @@ local defaults = {
         style = "minimal",
     },
     size_options = {
+        ---@type input.type.range
         width = {
             min = 80,
             max = 100,
         },
+        ---@type input.type.range
         height = {
             min = 1,
             max = 999,
@@ -41,22 +35,16 @@ local defaults = {
     },
 }
 
-local options = vim.deepcopy(defaults)
+config.options = vim.deepcopy(defaults)
 
 ---Extend default with user's config.
----@param opts select.config
+---@param opts select.options
 function config.extend(opts)
     if not opts or vim.tbl_isempty(opts) then
         return
     end
 
-    options = vim.tbl_deep_extend("force", options, opts)
+    config.options = vim.tbl_deep_extend("force", config.options, opts)
 end
-
-setmetatable(config, {
-    __index = function(_, k)
-        return options[k]
-    end,
-})
 
 return config
