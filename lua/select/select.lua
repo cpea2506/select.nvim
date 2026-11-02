@@ -35,68 +35,187 @@ local function clamp(value, min, max)
     return math.max(math.min(value, max), min)
 end
 
----Create list of labels.
----@param items string[]
-local function create_labels(items)
-    local alphabet = "abcdefghijklmnopqrstuvwxyz"
-    local preserve_keys = { j = true, k = true, g = true, q = true }
-
-    local labels = {}
-    local used = {}
-
-    -- Mark reserved keys as already used.
-    for k in pairs(preserve_keys) do
-        used[k] = true
+---@param n integer
+---@return integer
+local function factorial(n)
+    if n < 2 then
+        return 1
     end
 
-    local function next_label(i)
-        local result = ""
+    local result = 1
 
-        i = i + 1
+    for i = 2, n do
+        result = result * i
+    end
 
-        while i > 0 do
-            local r = (i - 1) % 26
-            result = alphabet:sub(r + 1, r + 1) .. result
-            i = math.floor((i - 1) / 26)
+    return result
+end
+
+---@param n integer
+---@param k integer
+---@return integer
+local function permutations(n, k)
+    if k < 0 or k > n then
+        return 0
+    end
+
+    return (factorial(n) / factorial(n - k)) ---@as integer
+end
+
+---@param allowed_key_count integer
+---@param item_count integer
+---@return integer
+local function calculate_min_keymap_len(allowed_key_count, item_count)
+    if item_count <= 0 then
+        return 0
+    end
+
+    local length = 1
+
+    while permutations(allowed_key_count, length) < item_count do
+        length = length + 1
+    end
+
+    return length
+end
+
+---@param title string
+---@param valid_keys table<string, boolean>
+---@param invalid_keys table<string, boolean>
+---@param min_keymap_len integer
+---@return string?
+local function get_keymap_from_title(title, valid_keys, invalid_keys, min_keymap_len)
+    title = title:lower()
+
+    for index = 1, #title - min_keymap_len + 1 do
+        local key = title:sub(index, index + min_keymap_len - 1)
+        local used = {}
+        local valid = true
+
+        for i = 1, #key do
+            local char = key:sub(i, i)
+
+            if used[char] then
+                valid = false
+                break
+            end
+
+            used[char] = true
         end
 
+        if valid and valid_keys[key] and not invalid_keys[key] then
+            return key
+        end
+    end
+
+    return nil
+end
+
+---@param letters string[]
+---@param min_keymap_len integer
+---@param max_results_len integer
+---@param invalid_keys table<string, boolean>
+---@return string[]
+local function generate_key_permutations(letters, min_keymap_len, max_results_len, invalid_keys)
+    local results = {}
+    local used = {}
+
+    local function backtrack(current)
+        if #results >= max_results_len then
+            return true
+        end
+
+        if #current == min_keymap_len then
+            if not invalid_keys[current] then
+                results[#results + 1] = current
+            end
+
+            return #results >= max_results_len
+        end
+
+        for i = 1, #letters do
+            local char = letters[i]
+
+            if not used[char] then
+                used[char] = true
+
+                local stop = backtrack(current .. char)
+
+                used[char] = nil
+
+                if stop then
+                    return true
+                end
+            end
+        end
+
+        return false
+    end
+
+    backtrack ""
+
+    return results
+end
+
+--- Create dictionary of labels.
+---@param items string[]
+---@return table<string, string>
+local function create_labels(items)
+    local alphabet = "fjdkslaghrueiwocnxvbmztyqp"
+    local preserve_keys = { "g", "j", "k", "q" }
+    local invalid_keys = {}
+
+    for _, key in ipairs(preserve_keys) do
+        invalid_keys[key] = true
+    end
+
+    local letters = vim.iter(vim.split(alphabet, "", { plain = true }))
+        :filter(function(char)
+            return not invalid_keys[char]
+        end)
+        :totable()
+
+    local valid_keys = {}
+
+    for _, char in ipairs(letters) do
+        valid_keys[char] = true
+    end
+
+    local min_keymap_len = calculate_min_keymap_len(#letters, #items)
+    ---@type table<string, string>
+    local result = {}
+
+    -- Try prioritize keymaps derived from titles.
+    for _, title in ipairs(items) do
+        local key = get_keymap_from_title(title, valid_keys, invalid_keys, min_keymap_len)
+
+        if key then
+            result[title] = key
+            invalid_keys[key] = true
+        end
+    end
+
+    local remaining_len = #items - vim.iter(result):count()
+
+    if remaining_len <= 0 then
         return result
     end
 
-    local function get_next_available()
-        local i = 0
+    local key_permutations = generate_key_permutations(letters, min_keymap_len, remaining_len, invalid_keys)
+    local permutation_index = 1
 
-        while true do
-            local label = next_label(i)
+    for _, title in ipairs(items) do
+        if not result[title] then
+            local key = key_permutations[permutation_index]
 
-            if not used[label] then
-                used[label] = true
+            result[title] = key
+            invalid_keys[key] = true
 
-                return label
-            end
-
-            i = i + 1
+            permutation_index = permutation_index + 1
         end
     end
 
-    -- Try first-letter labels.
-    for _, item in ipairs(items) do
-        local first_letter = item:sub(1, 1):lower()
-
-        if not preserve_keys[first_letter] and not used[first_letter] then
-            used[first_letter] = true
-            labels[item] = first_letter
-        end
-    end
-
-    -- Try fallback labels.
-    for _, item in ipairs(items) do
-        if not labels[item] then
-            labels[item] = get_next_available()
-        end
-    end
-
-    return labels
+    return result
 end
 
 ---@generic T
